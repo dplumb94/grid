@@ -283,11 +283,11 @@ paths:
       produces:
         - "application/json"
       parameters:
-        - "public_key"
-        in: "path"
-        description: "Public key of the agent to return"
-        required: true
-        type: "string"
+        - name: "public_key"
+          in: "path"
+          description: "Public key of the agent to return"
+          required: true
+          type: "string"
       responses:
         200:
           description: Successful operation
@@ -478,7 +478,7 @@ definitions:
       description:
         type: string
         example: "Example Lightbulb schema"
-      owener:
+      owner:
         type: string
         example: "philips001"
       properties:
