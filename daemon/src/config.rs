@@ -22,6 +22,7 @@ pub struct GridConfig {
     endpoint: Endpoint,
     rest_api_endpoint: String,
     database_url: String,
+    admin_key_name: String,
 }
 
 impl GridConfig {
@@ -34,6 +35,10 @@ impl GridConfig {
     }
     pub fn database_url(&self) -> &str {
         &self.database_url
+    }
+
+    pub fn admin_key_name(&self) -> &str {
+        &self.admin_key_name
     }
 }
 
@@ -92,6 +97,7 @@ pub struct GridConfigBuilder {
     endpoint: Option<Endpoint>,
     rest_api_endpoint: Option<String>,
     database_url: Option<String>,
+    admin_key_name: Option<String>,
 }
 
 impl Default for GridConfigBuilder {
@@ -103,6 +109,7 @@ impl Default for GridConfigBuilder {
             }),
             rest_api_endpoint: Some("127.0.0.1:8080".to_owned()),
             database_url: Some("postgres://grid:grid_example@localhost/grid".to_owned()),
+            admin_key_name: Some("gridd".to_owned()),
         }
     }
 }
@@ -124,6 +131,10 @@ impl GridConfigBuilder {
                 .value_of("database_url")
                 .map(ToOwned::to_owned)
                 .or_else(|| self.database_url.take()),
+            admin_key_name: matches
+                .value_of("admin_key_name")
+                .map(ToOwned::to_owned)
+                .or_else(|| self.admin_key_name.take()),
         }
     }
 
@@ -141,6 +152,10 @@ impl GridConfigBuilder {
                 .database_url
                 .take()
                 .ok_or_else(|| ConfigurationError::MissingValue("database_url".to_owned()))?,
+            admin_key_name: self
+                .admin_key_name
+                .take()
+                .ok_or_else(|| ConfigurationError::MissingValue("admin_key_name".to_owned()))?,
         })
     }
 }
