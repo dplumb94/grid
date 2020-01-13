@@ -15,20 +15,38 @@
  * -----------------------------------------------------------------------------
  */
 
+use sabre_sdk::protocol::payload::{
+    CreateContractActionBuildError, CreateContractRegistryActionBuildError,
+    CreateNamespaceRegistryActionBuildError, CreateNamespaceRegistryPermissionActionBuildError,
+    SabrePayloadBuildError,
+};
+use sabre_sdk::protos::ProtoConversionError as SabreProtoConversionError;
+use sawtooth_sdk::signing::Error as SigningError;
+use splinter::events;
 use std::error::Error;
 use std::fmt;
-
-use splinter::events;
 
 #[derive(Debug)]
 pub enum AppAuthHandlerError {
     WebSocketError(events::WebSocketError),
+    SabreError(String),
+    SawtoothError(String),
+    SigningError(String),
+    GetNodeError(GetNodeError),
+    BatchSubmitError(String),
+    InvalidMessageError(String),
 }
 
 impl Error for AppAuthHandlerError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             AppAuthHandlerError::WebSocketError(err) => Some(err),
+            AppAuthHandlerError::SabreError(_) => None,
+            AppAuthHandlerError::SawtoothError(_) => None,
+            AppAuthHandlerError::SigningError(_) => None,
+            AppAuthHandlerError::GetNodeError(err) => Some(err),
+            AppAuthHandlerError::BatchSubmitError(_) => None,
+            AppAuthHandlerError::InvalidMessageError(_) => None,
         }
     }
 }
@@ -37,7 +55,35 @@ impl fmt::Display for AppAuthHandlerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             AppAuthHandlerError::WebSocketError(msg) => write!(f, "WebsocketError {}", msg),
+            AppAuthHandlerError::SabreError(msg) => write!(
+                f,
+                "An error occurred while building a Sabre payload: {}",
+                msg
+            ),
+            AppAuthHandlerError::SawtoothError(msg) => write!(
+                f,
+                "An error occurred while building a transaction or batch: {}",
+                msg
+            ),
+            AppAuthHandlerError::SigningError(msg) => {
+                write!(f, "A signing error occurred: {}", msg)
+            }
+            AppAuthHandlerError::GetNodeError(msg) => write!(f, "GetNodeError {}", msg),
+            AppAuthHandlerError::BatchSubmitError(msg) => write!(
+                f,
+                "An error occurred while submitting a batch to the scabbard service: {}",
+                msg
+            ),
+            AppAuthHandlerError::InvalidMessageError(msg) => {
+                write!(f, "The client received an invalid message: {}", msg)
+            }
         }
+    }
+}
+
+impl From<std::string::FromUtf8Error> for AppAuthHandlerError {
+    fn from(err: std::string::FromUtf8Error) -> AppAuthHandlerError {
+        AppAuthHandlerError::InvalidMessageError(format!("{}", err))
     }
 }
 
@@ -46,3 +92,51 @@ impl From<events::WebSocketError> for AppAuthHandlerError {
         AppAuthHandlerError::WebSocketError(err)
     }
 }
+
+impl From<SigningError> for AppAuthHandlerError {
+    fn from(err: SigningError) -> Self {
+        AppAuthHandlerError::SigningError(err.to_string())
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct GetNodeError(pub String);
+
+impl Error for GetNodeError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
+impl fmt::Display for GetNodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<GetNodeError> for AppAuthHandlerError {
+    fn from(err: GetNodeError) -> Self {
+        AppAuthHandlerError::GetNodeError(err)
+    }
+}
+
+macro_rules! impl_from_sabre_errors {
+    ($($x:ty),*) => {
+        $(
+            impl From<$x> for AppAuthHandlerError {
+                fn from(e: $x) -> Self {
+                    AppAuthHandlerError::SabreError(e.to_string())
+                }
+            }
+        )*
+    };
+}
+
+impl_from_sabre_errors!(
+    CreateContractActionBuildError,
+    CreateContractRegistryActionBuildError,
+    CreateNamespaceRegistryActionBuildError,
+    CreateNamespaceRegistryPermissionActionBuildError,
+    SabreProtoConversionError,
+    SabrePayloadBuildError
+);
