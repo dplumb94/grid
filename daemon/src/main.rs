@@ -55,7 +55,10 @@ use crate::event::{db_handler::DatabaseEventHandler, EventProcessor};
 #[cfg(feature = "sawtooth-support")]
 use crate::sawtooth::{batch_submitter::SawtoothBatchSubmitter, connection::SawtoothConnection};
 #[cfg(feature = "splinter-support")]
-use crate::splinter::{app_auth_handler, batch_submitter::SplinterBatchSubmitter};
+use crate::splinter::{
+    app_auth_handler, batch_submitter::SplinterBatchSubmitter,
+    event::ScabbardEventConnectionFactory, key::load_scabbard_admin_keys,
+};
 
 const APP_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -172,7 +175,19 @@ fn run_sawtooth(config: GridConfig, _connection_pool: ConnectionPool) -> Result<
 
 #[cfg(feature = "splinter-support")]
 fn run_splinter(config: GridConfig, connection_pool: ConnectionPool) -> Result<(), DaemonError> {
-    app_auth_handler::run(config.endpoint().url(), Reactor::new().igniter())?;
+    let scabbard_admin_keys = load_scabbard_admin_keys(&config.admin_key_name())
+        .map_err(|err| DaemonError::StartUpError(Box::new(err)))?;
+
+    let scabbard_event_connection_factory =
+        ScabbardEventConnectionFactory::new(&config.endpoint().url());
+
+    app_auth_handler::run(
+        config.endpoint().url().into(),
+        scabbard_event_connection_factory,
+        connection_pool.clone(),
+        Reactor::new().igniter(),
+        scabbard_admin_keys,
+    )?;
 
     let batch_submitter = Box::new(SplinterBatchSubmitter::new(config.endpoint().url()));
 

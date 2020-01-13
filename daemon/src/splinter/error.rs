@@ -26,6 +26,9 @@ use splinter::events;
 use std::error::Error;
 use std::fmt;
 
+use crate::event::EventIoError;
+use crate::splinter::event::ScabbardEventConnectionError;
+
 #[derive(Debug)]
 pub enum AppAuthHandlerError {
     WebSocketError(events::WebSocketError),
@@ -35,6 +38,9 @@ pub enum AppAuthHandlerError {
     GetNodeError(GetNodeError),
     BatchSubmitError(String),
     InvalidMessageError(String),
+    ScabbardEventConnectionError(ScabbardEventConnectionError),
+    EventIoError(EventIoError),
+    EventProcessorError(String),
 }
 
 impl Error for AppAuthHandlerError {
@@ -47,6 +53,9 @@ impl Error for AppAuthHandlerError {
             AppAuthHandlerError::GetNodeError(err) => Some(err),
             AppAuthHandlerError::BatchSubmitError(_) => None,
             AppAuthHandlerError::InvalidMessageError(_) => None,
+            AppAuthHandlerError::ScabbardEventConnectionError(err) => Some(err),
+            AppAuthHandlerError::EventIoError(err) => Some(err),
+            AppAuthHandlerError::EventProcessorError(_) => None,
         }
     }
 }
@@ -76,6 +85,13 @@ impl fmt::Display for AppAuthHandlerError {
             ),
             AppAuthHandlerError::InvalidMessageError(msg) => {
                 write!(f, "The client received an invalid message: {}", msg)
+            }
+            AppAuthHandlerError::ScabbardEventConnectionError(msg) => {
+                write!(f, "ScabbardEventConnectionError {}", msg)
+            }
+            AppAuthHandlerError::EventIoError(msg) => write!(f, "EventIoError {}", msg),
+            AppAuthHandlerError::EventProcessorError(msg) => {
+                write!(f, "Event processor error: {}", msg)
             }
         }
     }
@@ -117,6 +133,18 @@ impl fmt::Display for GetNodeError {
 impl From<GetNodeError> for AppAuthHandlerError {
     fn from(err: GetNodeError) -> Self {
         AppAuthHandlerError::GetNodeError(err)
+    }
+}
+
+impl From<ScabbardEventConnectionError> for AppAuthHandlerError {
+    fn from(err: ScabbardEventConnectionError) -> Self {
+        AppAuthHandlerError::ScabbardEventConnectionError(err)
+    }
+}
+
+impl From<EventIoError> for AppAuthHandlerError {
+    fn from(err: EventIoError) -> Self {
+        AppAuthHandlerError::EventIoError(err)
     }
 }
 

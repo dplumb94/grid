@@ -15,11 +15,20 @@
  * -----------------------------------------------------------------------------
  */
 
-use crate::splinter::error::AppAuthHandlerError;
-
+use futures::executor::block_on;
+use serde_json::Value;
 use splinter::{
     admin::messages::AdminServiceEvent,
     events::{Igniter, ParseBytes, ParseError, WebSocketClient, WebSocketError, WsResponse},
+};
+
+use crate::database::ConnectionPool;
+use crate::event::{db_handler::DatabaseEventHandler, EventProcessor};
+use crate::splinter::{
+    error::{AppAuthHandlerError, GetNodeError},
+    event::ScabbardEventConnectionFactory,
+    key::Keys,
+    sabre::setup_grid,
 };
 
 /// default value if the client should attempt to reconnet if ws connection is lost
@@ -45,11 +54,26 @@ impl ParseBytes<AdminEvent> for AdminEvent {
     }
 }
 
-pub fn run(splinterd_url: String, igniter: Igniter) -> Result<(), AppAuthHandlerError> {
+pub fn run(
+    splinterd_url: String,
+    event_connection_factory: ScabbardEventConnectionFactory,
+    connection_pool: ConnectionPool,
+    igniter: Igniter,
+    scabbard_admin_keys: Keys,
+) -> Result<(), AppAuthHandlerError> {
     let registration_route = format!("{}/ws/admin/register/grid", &splinterd_url);
 
+    let node_id = get_node_id(splinterd_url.clone())?;
+
     let mut ws = WebSocketClient::new(&registration_route, move |_ctx, event| {
-        if let Err(err) = process_admin_event(event) {
+        if let Err(err) = process_admin_event(
+            event,
+            &event_connection_factory,
+            &connection_pool,
+            &node_id,
+            &splinterd_url,
+            &scabbard_admin_keys,
+        ) {
             error!("Failed to process admin event: {}", err);
         }
         WsResponse::Empty
@@ -79,11 +103,68 @@ pub fn run(splinterd_url: String, igniter: Igniter) -> Result<(), AppAuthHandler
     igniter.start_ws(&ws).map_err(AppAuthHandlerError::from)
 }
 
-fn process_admin_event(event: AdminEvent) -> Result<(), AppAuthHandlerError> {
+pub fn get_node_id(splinterd_url: String) -> Result<String, GetNodeError> {
+    let splinterd_url = splinterd_url.to_owned();
+    let uri = format!("{}/status", splinterd_url);
+
+    let body: Value = reqwest::blocking::get(&uri)
+        .map_err(|err| GetNodeError(format!("Failed to get set up request: {}", err)))?
+        .json()
+        .map_err(|err| GetNodeError(format!("Failed to parse response body: {}", err)))?;
+
+    let node_id_val = body
+        .get("node_id")
+        .ok_or_else(|| GetNodeError(format!("Node status response did not contain a node ID.")))?;
+
+    let node_id = node_id_val
+        .as_str()
+        .ok_or_else(|| GetNodeError(format!("Node status returned an invalid ID.")))?;
+
+    Ok(node_id.to_string())
+}
+
+fn process_admin_event(
+    event: AdminEvent,
+    event_connection_factory: &ScabbardEventConnectionFactory,
+    connection_pool: &ConnectionPool,
+    node_id: &str,
+    splinterd_url: &str,
+    scabbard_admin_keys: &Keys,
+) -> Result<(), AppAuthHandlerError> {
     debug!("Received the event at {}", event.timestamp);
     match event.admin_event {
-        _ => {
-            unimplemented!();
+        AdminServiceEvent::CircuitReady(msg_proposal) => {
+            let service_id = match msg_proposal.circuit.roster.iter().find_map(|service| {
+                if service.allowed_nodes.contains(&node_id.to_string()) {
+                    Some(service.service_id.clone())
+                } else {
+                    None
+                }
+            }) {
+                Some(id) => id,
+                None => {
+                    debug!(
+                        "New circuit does not have any services for this node: {}",
+                        node_id
+                    );
+                    return Ok(());
+                }
+            };
+
+            block_on(setup_grid(scabbard_admin_keys, splinterd_url, &service_id))?;
+
+            let event_connection = event_connection_factory
+                .create_connection(&msg_proposal.circuit_id, &service_id)?;
+
+            EventProcessor::start(
+                event_connection,
+                "",
+                vec![Box::new(DatabaseEventHandler::new(connection_pool.clone()))],
+            )
+            .map_err(|err| AppAuthHandlerError::EventProcessorError(err.0))?;
+
+            Ok(())
         }
+        _ => Ok(()),
     }
 }

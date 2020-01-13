@@ -127,7 +127,8 @@ impl EventConnection for ScabbardEventConnection {
         let source = self.name.clone();
         let unsubscribe_sender = sender.clone();
         let mut state_delta_ws = WebSocketClient::new(
-            &format!("{}?last_seen_event={}", self.connection_url, last_commit_id),
+            // &format!("{}?last_seen_event={}", self.connection_url, last_commit_id),
+            &format!("{}", self.connection_url),
             move |_, event: StateChangeEvent| {
                 match sender.try_send(ConnectionCommand::Message(event)) {
                     Ok(_) => (),
