@@ -1,28 +1,27 @@
 {
-  "name": "grid-ui",
+  "name": "product",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@fortawesome/fontawesome-svg-core": "^1.2.25",
-    "@fortawesome/free-solid-svg-icons": "^5.11.2",
-    "@fortawesome/react-fontawesome": "^0.1.7",
+    "@fortawesome/fontawesome-svg-core": "^1.2.27",
+    "@fortawesome/free-solid-svg-icons": "^5.12.1",
+    "@fortawesome/react-fontawesome": "^0.1.9",
     "@testing-library/jest-dom": "^4.2.4",
     "@testing-library/react": "^9.3.2",
     "@testing-library/user-event": "^7.1.2",
-    "react": "^16.12.0",
-    "react-dom": "^16.12.0",
-    "react-scripts": "^3.4.0",
-    "splinter-canopyjs": "github:dplumb94/splinter-canopyjs#add-login-elements"
+    "react": "^16.13.0",
+    "react-dom": "^16.13.0",
+    "react-scripts": "3.4.0",
+    "rewire": "^4.0.1",
+    "splinter-saplingjs": "github:cargill/splinter-saplingjs#master"
   },
   "scripts": {
-    "start:saplings": "http-server . -p 3030 --cors",
-    "start:react": "REACT_APP_SAPLING_URL=http://0.0.0.0:3030/sapling-dev-server REACT_APP_SPLINTER_URL=http://0.0.0.0:8085  react-scripts start",
-    "start": "run-p start:saplings start:react",
-    "build": "react-scripts build",
+    "start": "react-scripts start",
+    "build": "node ./scripts/build.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "format": "prettier --write \"**/*.+(js|jsx|json|css|scss|md)\"",
-    "lint": "eslint ."
+    "add-to-canopy": "cp -r ./build/static/* ../../sapling-dev-server/product",
+    "deploy": "npm run build && npm run add-to-canopy"
   },
   "eslintConfig": {
     "extends": "react-app"
