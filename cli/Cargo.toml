@@ -54,11 +54,12 @@ default = [
     "sawtooth",
     "database",
     "postgres",
+    "sqlite",
 ]
 
-stable = ["location", "pike", "product", "schema", "default"]
+stable = ["location", "pike", "product", "schema",  "postgres", "sqlite", "splinter", "default"]
 
-experimental = ["splinter", "stable", "sqlite"]
+experimental = ["stable"]
 
 database = ["diesel"]
 postgres = [
